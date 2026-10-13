@@ -1,0 +1,43 @@
+# Python & Virtual Environment
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# IDEs & Editors (VS Code, PyCharm)
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Big Data, Spark, Delta Lake & Airflow Temp / Checkpoints / Logs
+spark-warehouse/
+metastore_db/
+derby.log
+delta_lake/
+logs/
+airflow.db
+*.log
+
+# Docker & System Temp / Large WSL data
+DockerDesktopWSL/
+DockerTmp/
+DockerWSL/
+.DS_Store
+Thumbs.db
+
+# Datasets & Heavy Archives
+*.zip
+*.rar
+*.csv
+PaySim/
+archive/
+
+# Models binaries
+models/gbt_fraud_model/
+models/*.model/
+*.exe
