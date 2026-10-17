@@ -1,0 +1,5 @@
+Huong Dan BigData:
+docker-compose up -d
+docker ps
+.\run_all.bat
+.\stop_all.bat

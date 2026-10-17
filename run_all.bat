@@ -1,70 +1,66 @@
 @echo off
+chcp 65001 >nul
 echo ===================================================
-echo [1] Khoi dong ha tang Kafka, Zookeeper qua Docker...
+echo [0] Dọn dẹp toàn bộ dữ liệu, mô hình và checkpoint cũ...
+echo ===================================================
+if exist delta_lake rmdir /s /q delta_lake
+if exist models rmdir /s /q models
+if exist checkpoints rmdir /s /q checkpoints
+echo Đã làm sạch toàn bộ môi trường!
+
+echo ===================================================
+echo [1] Khởi động hạ tầng Docker (Kafka + Zookeeper)...
 echo ===================================================
 docker-compose up -d
-
-echo Dang cho Docker/Kafka khoi dong hoan toan (20 giay)...
-timeout /t 20 /nobreak
+echo Đang chờ Kafka khởi động (25 giây)...
+timeout /t 25 /nobreak
 
 echo ===================================================
-echo [2] Khoi tao Kafka Topic...
+echo [2] Khởi tạo Kafka Topic...
 echo ===================================================
-.\.venv\Scripts\python.exe create_topic.py
+.\.venv\Scripts\python.exe spark_jobs\ingest\create_topic.py
 timeout /t 3 /nobreak
 
 echo ===================================================
-echo [3] Kich hoat PRODUCER de bom du lieu moi...
+echo [3] Kích hoạt Producer bơm dữ liệu vào Kafka...
 echo ===================================================
-start "Kafka Producer" cmd /k ".\.venv\Scripts\python.exe producer.py"
+start "Kafka Producer" cmd /k ".\.venv\Scripts\python.exe spark_jobs\ingest\producer.py"
+timeout /t 8 /nobreak
 
-echo Dang doi Producer bom nhung record dau tien vao Kafka (15 giay)...
+echo ===================================================
+echo [4] Chạy Consumer Bronze (Thu thập dữ liệu thô)...
+echo ===================================================
+start "Consumer Bronze" cmd /k ".\.venv\Scripts\python.exe spark_jobs\ingest\consumer_bronze.py"
+echo Đang chờ Consumer Bronze tích lũy dữ liệu thô (15 giây)...
 timeout /t 15 /nobreak
 
 echo ===================================================
-echo [4] Chay luong BRONZE (Ghi du lieu tu Kafka xuong Delta)...
+echo [5] Chạy tuần tự ETL: Bronze -> Silver -> Gold...
 echo ===================================================
-start "Consumer Bronze" cmd /k ".\.venv\Scripts\python.exe consumer_bronze.py"
+echo Đang chạy Process Silver (Chạy đồng bộ)...
+.\.venv\Scripts\python.exe spark_jobs\transform\process_silver.py
 
-echo Dang doi Bronze tao thu muc va ghi file _delta_log (20 giay)...
-timeout /t 20 /nobreak
-
-echo ===================================================
-echo [5] Chay luong TRANG THAI va SILVER...
-echo ===================================================
-start "Cap Nhat Trang Thai" cmd /k ".\.venv\Scripts\python.exe cap_nhat_trang_thai.py"
-timeout /t 8 /nobreak
-
-start "Process Silver" cmd /k ".\.venv\Scripts\python.exe process_silver.py"
-
-echo Dang doi Silver tao thu muc va ghi du lieu (20 giay)...
-timeout /t 20 /nobreak
+echo Đang chạy Process Gold (Chạy đồng bộ)...
+.\.venv\Scripts\python.exe spark_jobs\transform\process_gold.py
 
 echo ===================================================
-echo [6] Chay luong GOLD...
+echo [6] Huấn luyện mô hình Machine Learning (Train Model)...
 echo ===================================================
-start "Process Gold" cmd /k ".\.venv\Scripts\python.exe process_gold.py"
-
-echo Dang doi Gold tong hop dac trung ban dau (30 giay)...
-timeout /t 30 /nobreak
+:: Chạy đồng bộ trực tiếp để đảm bảo file model chắc chắn được sinh ra 100%%
+.\.venv\Scripts\python.exe spark_jobs\ml\train_model.py
 
 echo ===================================================
-echo [7] Huan luyen mo hinh Machine Learning...
+echo [7] Kích hoạt các luồng Streaming và Web App...
 echo ===================================================
-:: Chay batch de huan luyen mo hinh 1 lan dua tren du lieu Gold hien co
-:: Su dung cmd /c vi day la tac vu batch, chay xong se tu tat terminal
-start "Train Model" cmd /c ".\.venv\Scripts\python.exe train_model.py"
+start "Cap Nhat Trang Thai" cmd /k ".\.venv\Scripts\python.exe spark_jobs\streaming\cap_nhat_trang_thai.py"
+timeout /t 5 /nobreak
 
-echo Dang doi huan luyen mo hinh va luu vao thu muc models (40 giay)...
-timeout /t 40 /nobreak
+start "Real-time Scoring" cmd /k ".\.venv\Scripts\python.exe spark_jobs\streaming\cham_diem.py"
+timeout /t 5 /nobreak
 
-echo ===================================================
-echo [8] Kich hoat he thong CHAM DIEM GIAN LAN REAL-TIME...
-echo ===================================================
-:: Luong streaming nay se nap model da train va score truc tiep cac giao dich moi
-start "Real-time Scoring" cmd /k ".\.venv\Scripts\python.exe cham_diem.py"
+start "FastAPI Backend" cmd /k "cd /d webapp\backend && ..\..\.venv\Scripts\python.exe -m uvicorn main:app --reload --port 8000"
 
 echo ===================================================
-echo HOAN TAT KHOI CHAY HE THONG GIAN LAN TOAN DIEN!
+echo HOÀN TẤT KHỞI CHẠY HỆ THỐNG THÀNH CÔNG!
 echo ===================================================
 pause

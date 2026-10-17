@@ -2,147 +2,492 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title>Dashboard Giám Sát Gian Lận Thời Gian Thực</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FraudGuard AI - Hệ Thống Giám Sát Gian Lận Thời Gian Thực</title>
+    <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        .badge-high { background-color: #dc3545; }
-        .badge-medium { background-color: #ffc107; color: black; }
+        :root {
+            --bg-body: #f4f6f9;
+            --sidebar-width: 260px;
+        }
+        body {
+            background-color: var(--bg-body);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #334155;
+        }
+        /* Navbar */
+        .navbar-brand {
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+        /* KPI Cards */
+        .stat-card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            transition: transform 0.2s;
+            background: #ffffff;
+        }
+        .stat-card:hover {
+            transform: translateY(-3px);
+        }
+        .stat-icon {
+            width: 48px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 10px;
+            font-size: 1.25rem;
+        }
+        /* Table Styles */
+        .card-custom {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            background: #ffffff;
+        }
+        .table > thead {
+            background-color: #f8fafc;
+            color: #475569;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.5px;
+        }
+        .badge-risk-high {
+            background-color: #fee2e2;
+            color: #dc2626;
+            font-weight: 600;
+            padding: 6px 12px;
+            border-radius: 20px;
+        }
+        .badge-risk-med {
+            background-color: #fef3c7;
+            color: #d97706;
+            font-weight: 600;
+            padding: 6px 12px;
+            border-radius: 20px;
+        }
+        /* Live Indicator */
+        .live-dot {
+            height: 10px;
+            width: 10px;
+            background-color: #22c55e;
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 0 0 rgba(34, 197, 94, 0.4);
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); }
+            70% { box-shadow: 0 0 0 8px rgba(34, 197, 94, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+        }
     </style>
 </head>
-<body class="bg-light">
-    <div class="container-fluid py-4">
-        <h2 class="mb-4 text-primary">🛡️ Hệ Thống Giám Sát & Thẩm Định Gian Lận (PaySim)</h2>
+<body>
+
+    <!-- Top Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark px-4 shadow-sm">
+        <div class="container-fluid">
+            <a class="navbar-brand d-flex align-items-center gap-2" href="#">
+                <i class="fa-solid fa-shield-halved text-danger fa-lg"></i>
+                <span>FraudGuard <small class="text-muted fw-normal">Lakehouse Platform</small></span>
+            </a>
+            <div class="d-flex align-items-center gap-3">
+                <span class="badge bg-secondary d-flex align-items-center gap-2 px-3 py-2">
+                    <span class="live-dot"></span> Streaming Active (Spark & Kafka)
+                </span>
+                <span class="text-light small"><i class="fa-regular fa-clock me-1"></i> <span id="live-clock">--:--:--</span></span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <div class="container-fluid py-4 px-4">
         
-        <!-- Thống kê nhanh -->
-        <div class="row mb-4">
-            <div class="col-md-3">
-                <div class="card bg-white p-3 shadow-sm border-0">
-                    <h6>Precision@200</h6>
-                    <h3 class="text-success" id="metric-precision">0.915</h3>
+        <!-- Section Tiêu đề -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h3 class="fw-bold text-dark m-0">Trung Tâm Thẩm Định & Giám Sát Gian Lận</h3>
+                <p class="text-muted small m-0">Hệ thống phân tích thời gian thực trên nền tảng Delta Lake & Spark MLlib</p>
+            </div>
+            <button class="btn btn-primary px-3 py-2 d-flex align-items-center gap-2 shadow-sm" onclick="loadAllData()">
+                <i class="fa-solid fa-rotate"></i> Làm mới dữ liệu
+            </button>
+        </div>
+
+        <!-- Thẻ KPI Thống kê (Lấy động từ API /api/mo-hinh/hieu-nang) -->
+        <div class="row g-3 mb-4">
+            <div class="col-xl-3 col-md-6">
+                <div class="card stat-card p-3">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <span class="text-muted small fw-semibold">Precision@200</span>
+                            <h3 class="fw-bold text-dark mt-1 mb-0" id="metric-precision">--</h3>
+                        </div>
+                        <div class="stat-icon bg-success-subtle text-success">
+                            <i class="fa-solid fa-bullseye"></i>
+                        </div>
+                    </div>
+                    <span class="text-success small mt-2 d-block"><i class="fa-solid fa-arrow-trend-up"></i> Đạt ngưỡng mục tiêu (&ge;0.35)</span>
                 </div>
             </div>
-            <div class="col-md-3">
-                <div class="card bg-white p-3 shadow-sm border-0">
-                    <h6>Chỉ số Drift (PSI)</h6>
-                    <h3 class="text-info" id="metric-psi">0.032</h3>
+            <div class="col-xl-3 col-md-6">
+                <div class="card stat-card p-3">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <span class="text-muted small fw-semibold">Chỉ số Data Drift (PSI)</span>
+                            <h3 class="fw-bold text-dark mt-1 mb-0" id="metric-psi">--</h3>
+                        </div>
+                        <div class="stat-icon bg-info-subtle text-info">
+                            <i class="fa-solid fa-chart-line"></i>
+                        </div>
+                    </div>
+                    <span class="text-muted small mt-2 d-block"><i class="fa-solid fa-check text-success"></i> Phân phối ổn định (&lt;0.1)</span>
+                </div>
+            </div>
+            <div class="col-xl-3 col-md-6">
+                <div class="card stat-card p-3">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <span class="text-muted small fw-semibold">Cảnh Báo Chờ Xử Lý</span>
+                            <h3 class="fw-bold text-danger mt-1 mb-0" id="metric-queue-count">0</h3>
+                        </div>
+                        <div class="stat-icon bg-danger-subtle text-danger">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                        </div>
+                    </div>
+                    <span class="text-danger small mt-2 d-block"><i class="fa-solid fa-bolt"></i> Thời gian phản hồi &lt; 2s</span>
+                </div>
+            </div>
+            <div class="col-xl-3 col-md-6">
+                <div class="card stat-card p-3">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <span class="text-muted small fw-semibold">Phiên Bản Mô Hình</span>
+                            <h3 class="fw-bold text-primary mt-1 mb-0" id="metric-model-version">v1.2.0</h3>
+                        </div>
+                        <div class="stat-icon bg-primary-subtle text-primary">
+                            <i class="fa-solid fa-brain"></i>
+                        </div>
+                    </div>
+                    <span class="text-muted small mt-2 d-block"><i class="fa-solid fa-clock-rotate-left"></i> GBTClassifier (MLlib)</span>
                 </div>
             </div>
         </div>
 
-        <!-- Bảng Cảnh báo Thời gian thực -->
-        <div class="card shadow-sm border-0">
-            <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                <h5 class="m-0">Hàng Đợi Cảnh Báo Rủi Ro Cao</h5>
-                <button class="btn btn-sm btn-outline-primary" onclick="loadCanhBao()">🔄 Làm mới</button>
+        <!-- Biểu đồ & Bảng dữ liệu chính -->
+        <div class="row g-4 mb-4">
+            <!-- Biểu đồ xu hướng rủi ro -->
+            <div class="col-lg-4">
+                <div class="card card-custom p-4 h-100">
+                    <h5 class="fw-bold mb-3"><i class="fa-solid fa-chart-pie me-2 text-primary"></i>Phân Bố Rủi Ro</h5>
+                    <canvas id="riskChart" style="max-height: 250px;"></canvas>
+                    <div class="mt-3 text-muted small">
+                        * Thống kê tỷ lệ rủi ro giao dịch ghi nhận từ luồng Spark Streaming theo thời gian thực.
+                    </div>
+                </div>
             </div>
-            <div class="card-body p-0">
-                <table class="table table-hover align-middle m-0">
-                    <thead class="table-dark">
-                        <tr>
-                            <th>Thời Gian</th>
-                            <th>Mã Giao Dịch</th>
-                            <th>Tài Khoản Nguồn</th>
-                            <th>Số Tiền (VND)</th>
-                            <th>Điểm Rủi Ro</th>
-                            <th>Thao Tác Thẩm Định</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tbl-canh-bao">
-                        <!-- Dữ liệu JS sẽ điền vào đây -->
-                    </tbody>
-                </table>
+
+            <!-- Bảng Hàng đợi Cảnh báo (API /api/canh-bao) -->
+            <div class="col-lg-8">
+                <div class="card card-custom h-100">
+                    <div class="card-header bg-white py-3 px-4 d-flex justify-content-between align-items-center border-0">
+                        <h5 class="fw-bold m-0"><i class="fa-solid fa-list-check me-2 text-primary"></i>Hàng Đợi Thẩm Định Rủi Ro Cao</h5>
+                        <div class="input-group input-group-sm w-auto">
+                            <input type="text" id="searchInput" class="form-control" placeholder="Tìm mã giao dịch..." onkeyup="filterTable()">
+                            <span class="input-group-text bg-light"><i class="fa-solid fa-search"></i></span>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th class="ps-4">Thời Gian</th>
+                                        <th>Mã Giao Dịch</th>
+                                        <th>Tài Khoản Nguồn</th>
+                                        <th>Số Tiền (VND)</th>
+                                        <th>Điểm Rủi Ro</th>
+                                        <th class="text-end pe-4">Thao Tác</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbl-canh-bao">
+                                    <!-- Dữ liệu render bằng JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
+
+        <!-- Bảng Lịch Sử Kiểm Toán Delta Lake (API /api/kiem-toan/lich-su) -->
+        <div class="row g-4">
+            <div class="col-12">
+                <div class="card card-custom p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="fw-bold m-0"><i class="fa-solid fa-clock-rotate-left me-2 text-primary"></i>Lịch Sử Kiểm Toán Delta Lake (Audit Log)</h5>
+                        <span class="badge bg-info text-dark"><i class="fa-solid fa-database me-1"></i> Delta Transaction Log</span>
+                    </div>
+                    <div class="table-responsive" style="max-height: 250px; overflow-y: auto;">
+                        <table class="table table-sm table-striped align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th class="ps-3">Phiên Bản (Version)</th>
+                                    <th>Thao Tác (Operation)</th>
+                                    <th>Trạng Thái / Thông Số</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbl-lich-su-kiem-toan">
+                                <!-- Dữ liệu audit log render bằng JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
 
-    <!-- Modal Thẩm định -->
+    <!-- Modal Thẩm Định (Ghi ngược vào API /api/giao-dich/ket-luan) -->
     <div class="modal fade" id="modalThamDinh" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Ghi Nhận Thẩm Định Giao Dịch</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg rounded-4">
+                <div class="modal-header bg-primary text-white rounded-top-4">
+                    <h5 class="modal-title fw-bold"><i class="fa-solid fa-user-shield me-2"></i>Thẩm Định Giao Dịch Rủi Ro</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body">
+                <div class="modal-body p-4">
                     <form id="formThamDinh">
                         <div class="mb-3">
-                            <label class="form-label">Mã Giao Dịch</label>
-                            <input type="text" class="form-control" id="modal-magd" readonly>
+                            <label class="form-label fw-semibold small text-muted">Mã Giao Dịch</label>
+                            <input type="text" class="form-control bg-light fw-bold" id="modal-magd" readonly>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Kết Luận</label>
-                            <select class="form-select" id="modal-ketluan">
-                                <option value="GIAN_LAN">⚠️ GIAN LẬN (CONFIRMED FRAUD)</option>
-                                <option value="HOP_LE">✅ HỢP LỆ (LEGITIMATE)</option>
+                            <label class="form-label fw-semibold small text-muted">Kết Luận Thẩm Định</label>
+                            <select class="form-select border-primary" id="modal-ketluan">
+                                <option value="GIAN_LAN">⚠️ GIAN LẬN XÁC ĐỊNH (Confirmed Fraud)</option>
+                                <option value="HOP_LE">✅ GIAO DỊCH HỢP LỆ (Legitimate)</option>
                             </select>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Người Thẩm Định</label>
-                            <input type="text" class="form-control" id="modal-nguoi" value="ThamDinhVien_01">
+                            <label class="form-label fw-semibold small text-muted">Cán Bộ Thẩm Định</label>
+                            <input type="text" class="form-control" id="modal-nguoi" value="Officer_Risk_01">
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Ghi Chú</label>
-                            <textarea class="form-control" id="modal-ghichu" rows="2"></textarea>
+                            <label class="form-label fw-semibold small text-muted">Ghi Chú / Phân Tích</label>
+                            <textarea class="form-control" id="modal-ghichu" rows="3" placeholder="Nhập nhận định chi tiết..."></textarea>
                         </div>
                     </form>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
-                    <button type="button" class="btn btn-primary" onclick="guiKetLuan()">Lưu Kết Luận</button>
+                <div class="modal-footer bg-light rounded-bottom-4">
+                    <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">Hủy</button>
+                    <button type="button" class="btn btn-primary px-4 fw-semibold" onclick="guiKetLuan()">
+                        <i class="fa-solid fa-floppy-disk me-1"></i> Lưu Kết Luận (MERGE)
+                    </button>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Toast Notification Container -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div id="liveToast" class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body" id="toastMessage">
+                    Thực hiện thành công!
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap & JS Logic -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         const API_BASE = "http://127.0.0.1:8000/api";
         let modalInstance;
+        let riskChartInstance;
+        let rawAlertData = [];
+
+        // Đồng hồ thời gian thực
+        setInterval(() => {
+            const now = new Date();
+            document.getElementById('live-clock').innerText = now.toLocaleTimeString('vi-VN');
+        }, 1000);
 
         document.addEventListener("DOMContentLoaded", () => {
             modalInstance = new bootstrap.Modal(document.getElementById('modalThamDinh'));
-            loadCanhBao();
-            // Tự động làm mới mỗi 5 giây
-            setInterval(loadCanhBao, 5000);
+            initChart();
+            loadAllData();
+            // Tự động làm mới dữ liệu mỗi 5 giây
+            setInterval(loadAllData, 5000);
         });
 
-        async function loadCanhBao() {
+        function initChart() {
+            const ctx = document.getElementById('riskChart').getContext('2d');
+            riskChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Rủi Ro Rất Cao (>0.9)', 'Rủi Ro Cao (0.8 - 0.9)', 'Cảnh Báo Thường (0.7 - 0.8)'],
+                    datasets: [{
+                        data: [0, 0, 0],
+                        backgroundColor: ['#dc2626', '#f59e0b', '#3b82f6'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } }
+                    }
+                }
+            });
+        }
+
+        // Gọi đồng thời tất cả các API để lấy dữ liệu toàn diện
+        function loadAllData() {
+            loadModelMetrics(); // API 3: /api/mo-hinh/hieu-nang
+            loadAlertData();    // API 1: /api/canh-bao
+            loadAuditHistory(); // API 4: /api/kiem-toan/lich-su
+        }
+
+        // --- API 3: /api/mo-hinh/hieu-nang ---
+        async function loadModelMetrics() {
+            try {
+                const res = await fetch(`${API_BASE}/mo-hinh/hieu-nang`);
+                const json = await res.json();
+                if (json.status === "success" && json.metrics) {
+                    const m = json.metrics;
+                    document.getElementById("metric-precision").innerText = m.precision_at_200;
+                    document.getElementById("metric-psi").innerText = m.psi_score;
+                    if (m.phien_ban_model) {
+                        document.getElementById("metric-model-version").innerText = m.phien_ban_model;
+                    }
+                }
+            } catch (err) {
+                console.error("Lỗi gọi API /api/mo-hinh/hieu-nang:", err);
+            }
+        }
+
+        // --- API 1: /api/canh-bao ---
+        async function loadAlertData() {
             try {
                 const res = await fetch(`${API_BASE}/canh-bao`);
                 const json = await res.json();
                 if (json.status === "success") {
-                    renderTable(json.data);
+                    rawAlertData = json.data;
+                    renderTable(rawAlertData);
+                    updateKPIsAndChart(rawAlertData);
                 }
             } catch (err) {
-                console.error("Lỗi tải dữ liệu cảnh báo:", err);
+                console.error("Lỗi gọi API /api/canh-bao:", err);
+            }
+        }
+
+        // --- API 4: /api/kiem-toan/lich-su ---
+        async function loadAuditHistory() {
+            try {
+                const res = await fetch(`${API_BASE}/kiem-toan/lich-su`);
+                const json = await res.json();
+                if (json.status === "success" && json.history) {
+                    const tbody = document.getElementById("tbl-lich-su-kiem-toan");
+                    tbody.innerHTML = "";
+                    
+                    if (json.history.length === 0) {
+                        tbody.innerHTML = `<tr><td colspan="3" class="text-center py-2 text-muted">Chưa có nhật ký kiểm toán Delta Lake.</td></tr>`;
+                        return;
+                    }
+
+                    json.history.forEach(item => {
+                        const version = item.version !== undefined ? item.version : 0;
+                        const operation = item.operation || 'WRITE';
+                        const status = item.status || 'Active';
+
+                        tbody.innerHTML += `
+                            <tr>
+                                <td class="ps-3"><span class="badge bg-secondary">v${version}</span></td>
+                                <td><code class="fw-bold text-dark">${operation}</code></td>
+                                <td><span class="badge bg-success">${status}</span></td>
+                            </tr>
+                        `;
+                    });
+                }
+            } catch (err) {
+                console.error("Lỗi gọi API /api/kiem-toan/lich-su:", err);
             }
         }
 
         function renderTable(data) {
             const tbody = document.getElementById("tbl-canh-bao");
             tbody.innerHTML = "";
+            
+            if (data.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-muted">Không có giao dịch rủi ro nào cần xử lý.</td></tr>`;
+                return;
+            }
+
             data.forEach(item => {
-                const scoreBadge = item.diem_rui_ro >= 0.8 ? 'badge-high' : 'badge-medium';
+                const score = item.diem_rui_ro;
+                const badgeClass = score >= 0.85 ? 'badge-risk-high' : 'badge-risk-med';
+                const formattedMoney = Number(item.so_tien).toLocaleString('vi-VN');
+                const timeDisplay = item.thoi_diem || item.thoi_gian || 'Vừa xong';
+                
                 tbody.innerHTML += `
                     <tr>
-                        <td>${item.thoi_gian || 'N/A'}</td>
-                        <td><strong>${item.ma_giao_dich}</strong></td>
-                        <td>${item.tai_khoan_nguon}</td>
-                        <td>${Number(item.so_tien).toLocaleString('vi-VN')}</td>
-                        <td><span class="badge ${scoreBadge}">${(item.diem_rui_ro * 100).toFixed(1)}%</span></td>
-                        <td>
-                            <button class="btn btn-sm btn-warning" onclick="openModal('${item.ma_giao_dich}')">Thẩm Định</button>
+                        <td class="ps-4 text-muted small">${timeDisplay}</td>
+                        <td><strong class="text-primary">${item.ma_giao_dich}</strong></td>
+                        <td><code class="text-dark">${item.tai_khoan_nguon}</code></td>
+                        <td class="fw-semibold">${formattedMoney} đ</td>
+                        <td><span class="badge ${badgeClass}">${(score * 100).toFixed(1)}%</span></td>
+                        <td class="text-end pe-4">
+                            <button class="btn btn-sm btn-outline-primary px-3 fw-semibold" onclick="openModal('${item.ma_giao_dich}')">
+                                <i class="fa-solid fa-gavel me-1"></i> Thẩm Định
+                            </button>
                         </td>
                     </tr>
                 `;
             });
         }
 
+        function updateKPIsAndChart(data) {
+            document.getElementById("metric-queue-count").innerText = data.length;
+
+            let veryHigh = 0, high = 0, medium = 0;
+            data.forEach(item => {
+                if (item.diem_rui_ro >= 0.9) veryHigh++;
+                else if (item.diem_rui_ro >= 0.8) high++;
+                else medium++;
+            });
+
+            riskChartInstance.data.datasets[0].data = [veryHigh, high, medium];
+            riskChartInstance.update();
+        }
+
+        function filterTable() {
+            const keyword = document.getElementById("searchInput").value.toLowerCase();
+            const filtered = rawAlertData.filter(item => 
+                item.ma_giao_dich.toLowerCase().includes(keyword) || 
+                item.tai_khoan_nguon.toLowerCase().includes(keyword)
+            );
+            renderTable(filtered);
+        }
+
         function openModal(maGD) {
             document.getElementById("modal-magd").value = maGD;
+            document.getElementById("modal-ghichu").value = "";
             modalInstance.show();
         }
 
+        // --- API 2: POST /api/giao-dich/ket-luan ---
         async function guiKetLuan() {
             const payload = {
                 ma_giao_dich: document.getElementById("modal-magd").value,
@@ -151,19 +496,29 @@
                 ghi_chu: document.getElementById("modal-ghichu").value
             };
 
-            const res = await fetch(`${API_BASE}/giao-dich/ket-luan`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload)
-            });
+            try {
+                const res = await fetch(`${API_BASE}/giao-dich/ket-luan`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
 
-            if (res.ok) {
-                alert("Đã lưu kết luận thành công!");
-                modalInstance.hide();
-                loadCanhBao();
-            } else {
-                alert("Lỗi khi ghi nhận phản hồi!");
+                if (res.ok) {
+                    modalInstance.hide();
+                    showToast("Đã ghi nhận kết luận thẩm định và cập nhật Delta Table thành công!");
+                    loadAllData(); // Làm mới lại toàn bộ dữ liệu trên web
+                } else {
+                    alert("Lỗi khi ghi nhận kết luận vào hệ thống!");
+                }
+            } catch (err) {
+                alert("Không thể kết nối đến Backend FastAPI.");
             }
+        }
+
+        function showToast(message) {
+            document.getElementById("toastMessage").innerText = message;
+            const toast = new bootstrap.Toast(document.getElementById('liveToast'));
+            toast.show();
         }
     </script>
 </body>

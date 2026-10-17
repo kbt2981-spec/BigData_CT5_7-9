@@ -1,71 +1,81 @@
 import os
 import sys
 
-os.environ['JAVA_HOME'] = r'D:\Homework\Java\OpenJDK17U-jdk_x64_windows_hotspot_17.0.20.1_1\jdk-17.0.20.1+1'
-os.environ['HADOOP_HOME'] = r'D:\Homework\Hadoop'
-os.environ['PYSPARK_PYTHON'] = sys.executable
-os.environ['PYSPARK_DRIVER_PYTHON'] = sys.executable
+JAVA_HOME = r"D:\Homework\Java\OpenJDK17U-jdk_x64_windows_hotspot_17.0.20.1_1\jdk-17.0.20.1+1"
+HADOOP_HOME = r"D:\Homework\Hadoop"
+
+# Kiem tra duong dan he thong
+java_exe_path = os.path.join(JAVA_HOME, "bin", "java.exe")
+winutils_path = os.path.join(HADOOP_HOME, "bin", "winutils.exe")
+
+if not os.path.exists(java_exe_path):
+    raise FileNotFoundError(f"\n[LOI NGHIEM TRONG]: Khong tim thay java.exe tai {java_exe_path}")
+
+if not os.path.exists(winutils_path):
+    raise FileNotFoundError(f"\n[LOI NGHIEM TRONG]: Khong tim thay winutils.exe tai {winutils_path}")
+
+os.environ["JAVA_HOME"] = JAVA_HOME
+os.environ["HADOOP_HOME"] = HADOOP_HOME
+os.environ["PATH"] = os.path.join(HADOOP_HOME, "bin") + ";" + os.environ.get("PATH", "")
+
+venv_python = sys.executable 
+os.environ["PYSPARK_PYTHON"] = venv_python
+os.environ["PYSPARK_DRIVER_PYTHON"] = venv_python
+
+# Giai phap triet de: Khai bao bien moi truong de ep Spark tai goi Kafka va Delta truoc khi khoi tao
+os.environ['PYSPARK_SUBMIT_ARGS'] = '--packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,io.delta:delta-spark_2.12:3.1.0 pyspark-shell'
+
+sys.setrecursionlimit(15000)
 
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, from_json, to_date
-from pyspark.sql.types import StructType, StructField, DoubleType, StringType, TimestampType
+from pyspark.sql.functions import current_timestamp
+from delta import configure_spark_with_delta_pip
 
 def main():
-    spark = SparkSession.builder \
-        .appName("KafkaToBronzeConsumer") \
+    builder = SparkSession.builder \
+        .appName("ConsumerBronze") \
         .master("local[*]") \
-        .config("spark.driver.memory", "1g") \
-        .config("spark.executor.memory", "1g") \
-        .config("spark.sql.shuffle.partitions", "2") \
-        .config("spark.jars.packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,io.delta:delta-spark_2.12:3.1.0") \
+        .config("spark.driver.host", "127.0.0.1") \
         .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension") \
         .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog") \
-        .getOrCreate()
+        .config("spark.driver.memory", "2g") \
+        .config("spark.executor.memory", "2g") \
+        .config("spark.driver.extraJavaOptions", 
+                "--add-opens=java.base/java.lang=ALL-UNNAMED "
+                "--add-opens=java.base/java.lang.invoke=ALL-UNNAMED "
+                "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED "
+                "--add-opens=java.base/java.io=ALL-UNNAMED "
+                "--add-opens=java.base/java.net=ALL-UNNAMED "
+                "--add-opens=java.base/java.nio=ALL-UNNAMED "
+                "--add-opens=java.base/java.util=ALL-UNNAMED "
+                "--add-opens=java.base/java.util.concurrent=ALL-UNNAMED "
+                "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED")
 
+    spark = configure_spark_with_delta_pip(builder).getOrCreate()
     spark.sparkContext.setLogLevel("WARN")
-    sc = spark.sparkContext
-    conf = sc._jsc.hadoopConfiguration()
-    conf.set("fs.file.impl", "org.apache.hadoop.fs.LocalFileSystem")
 
-    # Schema chuẩn theo Đề tài 2 (Bảng bronze.giao_dich)
-    schema = StructType([
-        StructField("ma_giao_dich", StringType(), True),
-        StructField("thoi_diem", TimestampType(), True),
-        StructField("thoi_diem_nhan", TimestampType(), True),
-        StructField("tai_khoan_nguon", StringType(), True),
-        StructField("tai_khoan_dich", StringType(), True),
-        StructField("loai", StringType(), True),
-        StructField("so_tien", DoubleType(), True),
-        StructField("so_du_truoc_nguon", DoubleType(), True),
-        StructField("so_du_sau_nguon", DoubleType(), True),
-        StructField("so_du_truoc_dich", DoubleType(), True),
-        StructField("so_du_sau_dich", DoubleType(), True),
-        StructField("kenh", StringType(), True)
-    ])
-
-    kafka_stream = spark.readStream \
+    # Doc luong du lieu tu Kafka topic 'transactions'
+    df_kafka = spark.readStream \
         .format("kafka") \
         .option("kafka.bootstrap.servers", "localhost:9092") \
         .option("subscribe", "transactions") \
-        .option("startingOffsets", "earliest") \
+        .option("startingOffsets", "latest") \
         .load()
 
-    # Parse JSON và tự động tạo cột 'ngay' để phân vùng
-    parsed_stream = kafka_stream.select(
-        from_json(col("value").cast(StringType()), schema).alias("data")
-    ).select("data.*") \
-     .withColumn("ngay", to_date(col("thoi_diem")))
+    # Chuyen doi du lieu tho va them moc thoi gian nhan
+    df_bronze = df_kafka \
+        .selectExpr("CAST(value AS STRING) as json_value", "timestamp as kafka_timestamp") \
+        .withColumn("thoi_diem_nhan", current_timestamp())
 
-    bronze_table_path = "./delta_lake/bronze/giao_dich"
-    checkpoint_path = "./delta_lake/bronze/checkpoint"
+    BRONZE_TABLE_PATH = "./delta_lake/bronze/giao_dich"
+    CHECKPOINT_PATH = "./checkpoints/bronze_giao_dich"
 
-    # Bắt buộc partitionBy("ngay") theo yêu cầu kiến trúc
-    query = parsed_stream.writeStream \
+    # Ghi vao tang Bronze duoi dinh dang Delta Lake (Append-only)
+    query = df_bronze.writeStream \
         .format("delta") \
         .outputMode("append") \
-        .partitionBy("ngay") \
-        .option("checkpointLocation", checkpoint_path) \
-        .start(bronze_table_path)
+        .option("checkpointLocation", CHECKPOINT_PATH) \
+        .start(BRONZE_TABLE_PATH)
 
     query.awaitTermination()
 
