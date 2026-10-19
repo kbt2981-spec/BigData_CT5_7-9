@@ -113,4 +113,4 @@ git push origin main
 ## 👥 TÁC GIẢ & BẢO QUYỀN
 - **Sinh viên thực hiện:** Lê Thanh Phong
 - **GitHub Repository:** `kbt2981-ux`
-- **Môn học:** Công nghệ Dữ liệu lớn (Big Data)
+- **Môn học:** Big Data
