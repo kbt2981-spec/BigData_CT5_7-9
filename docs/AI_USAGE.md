@@ -1,7 +1,5 @@
 # BẢN KHAI BÁO SỬ DỤNG TRÍ TUỆ NHÂN TẠO (AI USAGE REPORT)
 
-*Căn cứ theo Quy định chung Mục A.9 - Đề cương môn Big Data, Trường Đại học Tân Tạo.*
-
 ---
 
 ## 1. Thông tin chung
