@@ -27,11 +27,48 @@ os.environ['PYSPARK_SUBMIT_ARGS'] = '--packages org.apache.spark:spark-sql-kafka
 
 sys.setrecursionlimit(15000)
 
+import socket
+import time
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import current_timestamp
 from delta import configure_spark_with_delta_pip
 
+def check_kafka_connection(host="127.0.0.1", port=9092, timeout=3):
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except (socket.timeout, ConnectionRefusedError, OSError):
+        return False
+
 def main():
+    print("==========================================================================")
+    print(" [CONSUMER BRONZE] KHOI CHAY LUONG THU THAP DU LIEU THO TU KAFKA")
+    print("==========================================================================")
+    
+    # 1. Kiem tra tinh san sang cua Apache Kafka truoc khi khoi tao Spark
+    print("--> Dang kiem tra ket noi toi Kafka Broker tai localhost:9092...")
+    retry_count = 0
+    while not check_kafka_connection("localhost", 9092, timeout=2):
+        retry_count += 1
+        print(f"[!] Chua tim thay Kafka Broker tai localhost:9092 (Lan thu {retry_count}/4)...")
+        if retry_count >= 4:
+            print("\n" + "="*75)
+            print(" [LỖI KẾT NỐI KAFKA BROKER]:")
+            print(" Không thể kết nối tới Apache Kafka tại localhost:9092!")
+            print(" NGUYÊN NHÂN:")
+            print("   - Docker Desktop chưa được bật trên máy tính.")
+            print("   - Hoặc các container Kafka/Zookeeper chưa chạy.")
+            print(" CÁCH KHẮC PHỤC:")
+            print("   1. Mở ứng dụng Docker Desktop trên màn hình Desktop hoặc Start Menu.")
+            print("   2. Chờ biểu tượng cá voi chuyển sang màu xanh (Engine running).")
+            print("   3. Chạy lệnh: docker-compose up -d")
+            print("   4. Chạy lại script này hoặc .\\run_all.bat")
+            print("="*75 + "\n")
+            sys.exit(1)
+        time.sleep(3)
+    
+    print("--> Da ket noi toi Kafka Broker thanh cong! Bat dau khoi tao Spark Session...")
+
     builder = SparkSession.builder \
         .appName("ConsumerBronze") \
         .master("local[*]") \
@@ -54,12 +91,12 @@ def main():
     spark = configure_spark_with_delta_pip(builder).getOrCreate()
     spark.sparkContext.setLogLevel("WARN")
 
-    # Doc luong du lieu tu Kafka topic 'transactions'
+    # Đã đổi từ "latest" thành "earliest" để đọc từ đầu, lấy cả dữ liệu lịch sử có chứa mẫu gian lận
     df_kafka = spark.readStream \
         .format("kafka") \
         .option("kafka.bootstrap.servers", "localhost:9092") \
         .option("subscribe", "transactions") \
-        .option("startingOffsets", "latest") \
+        .option("startingOffsets", "earliest") \
         .load()
 
     # Chuyen doi du lieu tho va them moc thoi gian nhan

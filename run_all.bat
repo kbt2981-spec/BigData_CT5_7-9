@@ -11,9 +11,21 @@ echo Đã làm sạch toàn bộ môi trường!
 echo ===================================================
 echo [1] Khởi động hạ tầng Docker (Kafka + Zookeeper)...
 echo ===================================================
+docker info >nul 2>&1
+if %errorlevel% neq 0 goto :launch_docker
+goto :docker_is_ready
+
+:launch_docker
+echo [!] Phat hien Docker Desktop chua hoat dong!
+echo Dang khoi dong Docker Desktop, vui long cho...
+if exist "C:\Users\lepho\AppData\Local\Programs\DockerDesktop\Docker Desktop.exe" start "" "C:\Users\lepho\AppData\Local\Programs\DockerDesktop\Docker Desktop.exe"
+echo Dang cho Docker Engine khoi dong...
+timeout /t 35 /nobreak
+
+:docker_is_ready
 docker-compose up -d
-echo Đang chờ Kafka khởi động (25 giây)...
-timeout /t 25 /nobreak
+echo Đang chờ Kafka & Zookeeper khởi động sẵn sàng (15 giây)...
+timeout /t 15 /nobreak
 
 echo ===================================================
 echo [2] Khởi tạo Kafka Topic...
@@ -44,9 +56,12 @@ echo Đang chạy Process Gold (Chạy đồng bộ)...
 .\.venv\Scripts\python.exe spark_jobs\transform\process_gold.py
 
 echo ===================================================
-echo [6] Huấn luyện mô hình Machine Learning (Train Model)...
+echo [6] Tạo tập đặc trưng Point-in-time & Huấn luyện ML...
 echo ===================================================
-:: Chạy đồng bộ trực tiếp để đảm bảo file model chắc chắn được sinh ra 100%%
+echo Đang tính toán đặc trưng lịch sử Point-in-time (chống Data Leakage)...
+.\.venv\Scripts\python.exe spark_jobs\ml\tao_tap_huan_luyen.py
+
+echo Đang huấn luyện & so sánh các mô hình Machine Learning...
 .\.venv\Scripts\python.exe spark_jobs\ml\train_model.py
 
 echo ===================================================

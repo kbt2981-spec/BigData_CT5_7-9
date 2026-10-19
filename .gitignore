@@ -40,4 +40,6 @@ archive/
 # Models binaries
 models/gbt_fraud_model/
 models/*.model/
-*.exe
+*.execheckpoints/  
+consumer_out.txt  
+producer_out.txt  

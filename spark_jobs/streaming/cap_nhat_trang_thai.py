@@ -76,12 +76,36 @@ def main():
     SILVER_TABLE_PATH = "./delta_lake/silver/trang_thai_khach_hang"
     CHECKPOINT_PATH = "./checkpoints/cap_nhat_trang_thai"
 
+    from delta.tables import DeltaTable
+
     def write_complete_batch(batch_df, batch_id):
-        batch_df.write \
-            .format("delta") \
-            .mode("overwrite") \
-            .option("mergeSchema", "true") \
-            .save(SILVER_TABLE_PATH)
+        if batch_df.isEmpty():
+            return
+
+        # Ap dung chuan MERGE INTO theo yeu cau Muc 2.7 de cuong
+        if DeltaTable.isDeltaTable(spark, SILVER_TABLE_PATH):
+            target_table = DeltaTable.forPath(spark, SILVER_TABLE_PATH)
+            target_table.alias("target").merge(
+                batch_df.alias("source"),
+                "target.tai_khoan = source.tai_khoan"
+            ).whenMatchedUpdate(set={
+                "so_gd_24h": col("source.so_gd_24h"),
+                "tong_tien_24h": col("source.tong_tien_24h"),
+                "lan_gd_gan_nhat": col("source.lan_gd_gan_nhat"),
+                "cap_nhat_luc": col("source.cap_nhat_luc")
+            }).whenNotMatchedInsert(values={
+                "tai_khoan": col("source.tai_khoan"),
+                "so_gd_24h": col("source.so_gd_24h"),
+                "tong_tien_24h": col("source.tong_tien_24h"),
+                "lan_gd_gan_nhat": col("source.lan_gd_gan_nhat"),
+                "cap_nhat_luc": col("source.cap_nhat_luc")
+            }).execute()
+        else:
+            batch_df.write \
+                .format("delta") \
+                .mode("overwrite") \
+                .option("mergeSchema", "true") \
+                .save(SILVER_TABLE_PATH)
 
     query = aggregated_df.writeStream \
         .outputMode("complete") \

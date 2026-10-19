@@ -10,7 +10,7 @@ os.environ['PYSPARK_PYTHON'] = sys.executable
 os.environ['PYSPARK_DRIVER_PYTHON'] = sys.executable
 
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, from_json, to_timestamp
+from pyspark.sql.functions import col, from_json, to_timestamp, coalesce, lit
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType, LongType
 from delta.tables import DeltaTable # Dung de kiem tra bang Delta
 
@@ -51,7 +51,7 @@ def main():
     initial_count = bronze_df.count()
     print(f"    -> So luong dong ban dau: {initial_count}")
 
-    # Dinh nghia Schema cho du lieu PaySim de parse JSON
+    # Dinh nghia Schema mo rong (hotro bat nhieu bien the ten cot nhan gian lan) cho du lieu PaySim de parse JSON
     schema = StructType([
         StructField("step", LongType(), True),
         StructField("type", StringType(), True),
@@ -63,6 +63,9 @@ def main():
         StructField("oldbalanceDest", DoubleType(), True),
         StructField("newbalanceDest", DoubleType(), True),
         StructField("isFraud", LongType(), True),
+        StructField("isFraud_Goc", LongType(), True), # Ho tro du lieu goc phat tu producer
+        StructField("is_fraud", LongType(), True),  # Ho tro them bien the gach duoi
+        StructField("Class", LongType(), True),     # Ho tro them bien the viet hoa
         StructField("thoi_diem", StringType(), True),
         StructField("ma_giao_dich", StringType(), True)
     ])
@@ -71,14 +74,21 @@ def main():
     parsed_df = bronze_df.withColumn("parsed_json", from_json(col("json_value"), schema)) \
                          .select("parsed_json.*", "thoi_diem_nhan")
 
+    # Hop nhat cac bien the nhan thanh mot cot chuan duy nhat 'isFraud'
+    parsed_df = parsed_df.withColumn(
+        "isFraud", 
+        coalesce(col("isFraud"), col("isFraud_Goc"), col("is_fraud"), col("Class"), lit(0)).cast(DoubleType())
+    )
+
     # 4. Lam sach du lieu (Data Cleaning & Transformation)
     print("2. Dang thuc hien lam sach du lieu...")
     
     # - Loai bo trung lap
     cleaned_df = parsed_df.dropDuplicates()
 
-    # - Loc bo ban ghi NULL o cac cot quan trong
-    cleaned_df = cleaned_df.dropna(subset=["so_tien", "thoi_diem", "tai_khoan_nguon", "ma_giao_dich"])
+    # - Tránh dùng dropna quá gắt làm mất các dòng gian lận có giá trị null phụ, 
+    #   thay vào đó ta fill giá trị mặc định an toàn cho isFraud và so_tien
+    cleaned_df = cleaned_df.na.fill({"isFraud": 0.0, "so_tien": 0.0})
 
     # - Loc cac giao dich hop le (so_tien >= 0)
     cleaned_df = cleaned_df.filter(col("so_tien") >= 0)
@@ -90,12 +100,25 @@ def main():
     print(f"    -> So luong dong sau khi lam sach: {final_count}")
     print(f"    -> So dong bi loai bo (trung/loi): {initial_count - final_count}")
 
+    # Thêm bảng kiểm tra nhanh phân phối nhãn isFraud để xác nhận không bị mất mẫu gian lận
+    print("    -> Thong ke phan phoi nhan isFraud trong Silver:")
+    cleaned_df.groupBy("isFraud").count().show()
+
     # 5. Ghi du lieu da lam sach vao tang Silver
     print(f"3. Dang ghi du lieu vao Silver Delta Lake tai: {silver_path}")
     cleaned_df.write \
         .format("delta") \
         .mode("overwrite") \
+        .option("overwriteSchema", "true") \
         .save(silver_path)
+
+    # 6. Thiet lap Delta Constraint: CHECK (so_tien > 0) theo yeu cau Muc 2.7 va 2.11
+    print("4. Dang thiet lap Delta Table Constraint: so_tien_duong CHECK (so_tien > 0)...")
+    try:
+        spark.sql(f"ALTER TABLE delta.`{silver_path}` ADD CONSTRAINT so_tien_duong CHECK (so_tien > 0)")
+        print("    -> Da them Delta Constraint 'so_tien_duong' thanh cong.")
+    except Exception as ex:
+        print(f"    -> Thong bao Constraint: {ex}")
 
     print("=== HOAN THANH QUY TRINH BRONZE -> SILVER ===")
     

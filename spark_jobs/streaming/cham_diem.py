@@ -13,7 +13,8 @@ from pyspark.sql import SparkSession
 from pyspark.ml import PipelineModel
 from pyspark.ml.util import DefaultParamsReader
 from pyspark.ml.functions import vector_to_array
-from pyspark.sql.functions import col, lit, current_timestamp, array, struct, when
+from pyspark.sql.functions import col, lit, current_timestamp, array, struct, when, from_json, date_format
+from pyspark.sql.types import StructType, StructField, StringType, DoubleType, LongType
 from delta import configure_spark_with_delta_pip
 
 # --- MONKEY-PATCH: DOC METADATA TRUC TIEP BANG PYTHON THUAN TRANH SAP WORKER TREN WINDOWS ---
@@ -36,7 +37,7 @@ def custom_load_metadata(path, sc, expectedClassName=""):
 DefaultParamsReader.loadMetadata = staticmethod(custom_load_metadata)
 # -----------------------------------------------------------------------------------------
 
-# 1. Khoi tao Spark Session voi Delta Lake extension va cau hinh ep duong dan Python cho Worker
+# 1. Khoi tao Spark Session voi Delta Lake extension
 builder = SparkSession.builder \
     .appName("RealtimeScoring_FraudDetection") \
     .master("local[*]") \
@@ -50,50 +51,67 @@ builder = SparkSession.builder \
 spark = configure_spark_with_delta_pip(builder).getOrCreate()
 spark.sparkContext.setLogLevel("WARN")
 
-# Cau hinh Hadoop FileSystem cho moi truong cuc bo Windows
 sc = spark.sparkContext
 conf = sc._jsc.hadoopConfiguration()
 conf.set("fs.file.impl", "org.apache.hadoop.fs.LocalFileSystem")
 conf.setBoolean("hadoop.native.lib", False)
 
-# 2. Xu ly duong dan thuyet doi chuan POSIX (dung dau /) cho Windows
+# 2. Xu ly duong dan
 BASE_DIR = Path(r"D:\Homework\BigData_CT5_7-9")
 abs_model_path = BASE_DIR / "models" / "gbt_fraud_model"
 
 if not abs_model_path.exists():
-    raise FileNotFoundError(f"Khong tim thay mo hinh tai {abs_model_path}. Hay chac chan ban da chay train_model.py thanh cong truoc!")
+    raise FileNotFoundError(f"Khong tim thay mo hinh tai {abs_model_path}.")
 
 MODEL_PATH = abs_model_path.as_posix()
-
 BRONZE_TABLE_PATH = (BASE_DIR / "delta_lake" / "bronze" / "giao_dich").as_posix()
 CHECKPOINT_PATH = (BASE_DIR / "delta_lake" / "_checkpoints" / "gold_diem_rui_ro").as_posix()
 GOLD_TABLE_PATH = (BASE_DIR / "delta_lake" / "gold" / "diem_rui_ro").as_posix()
 MODEL_VERSION = "gbt_v1.0"
 
-# 3. Load Model GBT an toan qua Custom Metadata Reader
+# 3. Load Model GBT
 try:
-    print(f"--> Loading GBT Model with custom metadata reader from path: {MODEL_PATH}...")
+    print(f"--> Loading GBT Pipeline Model from path: {MODEL_PATH}...")
     model = PipelineModel.load(MODEL_PATH)
     print("--> Tai mo hinh thanh cong!")
 except Exception as e:
     print(f"\nLoi khi load mo hinh: {e}")
     raise e
 
-# 4. Doc luong du lieu giao dich tu thu muc Bronze Delta Table kem Watermark
-df_stream = spark.readStream \
+# Dinh nghia Schema de parse JSON tu Bronze
+schema = StructType([
+    StructField("step", LongType(), True),
+    StructField("type", StringType(), True),
+    StructField("so_tien", DoubleType(), True),
+    StructField("tai_khoan_nguon", StringType(), True),
+    StructField("oldbalanceOrg", DoubleType(), True),
+    StructField("newbalanceOrig", DoubleType(), True),
+    StructField("tai_khoan_dich", StringType(), True),
+    StructField("oldbalanceDest", DoubleType(), True),
+    StructField("newbalanceDest", DoubleType(), True),
+    StructField("isFraud", LongType(), True),
+    StructField("thoi_diem", StringType(), True),
+    StructField("ma_giao_dich", StringType(), True)
+])
+
+# 4. Doc luong tu Bronze va Parse JSON
+df_raw = spark.readStream \
     .format("delta") \
-    .load(BRONZE_TABLE_PATH) \
-    .withWatermark("thoi_diem", "1 minute")
+    .load(BRONZE_TABLE_PATH)
+
+df_stream = df_raw \
+    .withColumn("parsed_json", from_json(col("json_value"), schema)) \
+    .select("parsed_json.*", "thoi_diem_nhan") \
+    .withColumn("thoi_diem_ts", col("thoi_diem").cast("timestamp")) \
+    .withWatermark("thoi_diem_ts", "1 minute")
 
 # 5. Ham xu ly cham diem theo từng Micro-Batch
 def process_micro_batch(batch_df, batch_id):
     if batch_df.isEmpty():
         return
     
-    # Chay mo hinh du bao (Inference trực tiếp trên batch)
     predictions = model.transform(batch_df)
 
-    # Chuyen doi va dinh dang du lieu khop dung dac ta schema gold.diem_rui_ro
     processed_scores = predictions \
         .withColumn("prob_array", vector_to_array(col("probability"))) \
         .withColumn("diem_rui_ro", col("prob_array")[1]) \
@@ -115,17 +133,16 @@ def process_micro_batch(batch_df, batch_id):
             "phien_ban_mo_hinh",
             "do_tre_ms",
             "trang_thai_tham_dinh",
-            "thoi_diem"
+            col("thoi_diem").cast("string").alias("thoi_diem")  # Ep kieu ve string de dong nhat schema Gold
         )
 
-    # Ghi du lieu truc tiep vao thu muc Delta Lake Gold
     processed_scores.write \
         .format("delta") \
         .mode("append") \
         .option("mergeSchema", "true") \
         .save(GOLD_TABLE_PATH)
 
-# 6. Thuc thi luong Structured Streaming với foreachBatch
+# 6. Thuc thi luong Structured Streaming
 query = df_stream.writeStream \
     .foreachBatch(process_micro_batch) \
     .option("checkpointLocation", CHECKPOINT_PATH) \

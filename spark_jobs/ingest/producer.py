@@ -1,4 +1,6 @@
 import os
+import sys
+import socket
 import pandas as pd
 import json
 import time
@@ -6,6 +8,28 @@ import random
 import uuid
 from datetime import datetime, timedelta
 from kafka import KafkaProducer
+
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
+
+def check_kafka_connection(host="127.0.0.1", port=9092, timeout=3):
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except (socket.timeout, ConnectionRefusedError, OSError):
+        return False
+
+print("--> [PRODUCER] Dang kiem tra ket noi toi Kafka Broker tai localhost:9092...")
+retry_cnt = 0
+while not check_kafka_connection("localhost", 9092, timeout=2):
+    retry_cnt += 1
+    print(f"[!] Dang cho Kafka Broker san sang (Thu lai {retry_cnt}/10)...")
+    if retry_cnt >= 10:
+        print("[LOI]: Khong the ket noi toi Kafka Broker tai localhost:9092!")
+        sys.exit(1)
+    time.sleep(3)
+
+print("--> [PRODUCER] Da ket noi Kafka Broker thanh cong. Dang khoi tao KafkaProducer...")
 
 # Khởi tạo Kafka Producer
 producer = KafkaProducer(
@@ -41,6 +65,7 @@ if CHON_NGUON_DU_LIEU == "paysim":
             
             giao_dich = {
                 "ma_giao_dich": str(uuid.uuid4()),
+                "step": int(row['step']),
                 "thoi_diem": thoi_diem.strftime("%Y-%m-%d %H:%M:%S"),
                 "thoi_diem_nhan": thoi_diem_nhan.strftime("%Y-%m-%d %H:%M:%S"),
                 "tai_khoan_nguon": row['nameOrig'],
@@ -52,6 +77,7 @@ if CHON_NGUON_DU_LIEU == "paysim":
                 "so_du_truoc_dich": float(row['oldbalanceDest']),
                 "so_du_sau_dich": float(row['newbalanceDest']),
                 "kenh": "APP",
+                "isFraud": int(row['isFraud']),
                 "isFraud_Goc": int(row['isFraud'])
             }
             producer.send(TOPIC_NAME, giao_dich)
