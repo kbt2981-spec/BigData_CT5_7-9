@@ -1,7 +1,5 @@
 # BÁO CÁO ĐO LƯỜNG HIỆU NĂNG DELTA LAKE OPTIMIZE & Z-ORDER
 
-*Căn cứ theo yêu cầu nghiệm thu Mục 2.7 và Mục 2.11 - Đề cương môn Big Data.*
-
 ## 1. Phương pháp thực nghiệm
 - **Bảng dữ liệu thực nghiệm:** `silver.giao_dich`
 - **Mục tiêu:** Giải quyết vấn nạn tệp tin nhỏ (Small File Problem) do cơ chế vi lô (micro-batch) của Structured Streaming sinh ra.

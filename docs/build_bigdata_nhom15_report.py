@@ -382,6 +382,7 @@ def generate_exact_report():
     # =========================================================================
     # CHƯƠNG 2: CƠ SỞ LÝ THUYẾT VÀ CÁC CÔNG NGHỆ NỀN TẢNG
     # =========================================================================
+    doc.add_page_break()
     add_title_header(doc, "CHƯƠNG 2: CƠ SỞ LÝ THUYẾT VÀ CÁC CÔNG NGHỆ NỀN TẢNG", 1)
 
     add_title_header(doc, "2.1. Kiến trúc phân tầng dữ liệu Medallion Architecture", 2)
@@ -439,6 +440,7 @@ def generate_exact_report():
     # =========================================================================
     # CHƯƠNG 3: PHÂN TÍCH VÀ THIẾT KẾ KIẾN TRÚC HỆ THỐNG
     # =========================================================================
+    doc.add_page_break()
     add_title_header(doc, "CHƯƠNG 3: PHÂN TÍCH VÀ THIẾT KẾ KIẾN TRÚC HỆ THỐNG", 1)
 
     add_title_header(doc, "3.1. Kiến trúc tổng thể hệ thống (System Architecture)", 2)
@@ -500,6 +502,7 @@ def generate_exact_report():
     # =========================================================================
     # CHƯƠNG 4: HIỆN THỰC HÓA VÀ TRIỂN KHAI HỆ THỐNG
     # =========================================================================
+    doc.add_page_break()
     add_title_header(doc, "CHƯƠNG 4: HIỆN THỰC HÓA VÀ TRIỂN KHAI HỆ THỐNG", 1)
 
     add_title_header(doc, "4.1. Môi trường triển khai và hạ tầng cụm phân tán", 2)
@@ -572,6 +575,7 @@ def generate_exact_report():
     # =========================================================================
     # CHƯƠNG 5: THỬ NGHIỆM, ĐÁNH GIÁ VÀ NGHIỆM THU HỆ THỐNG
     # =========================================================================
+    doc.add_page_break()
     add_title_header(doc, "CHƯƠNG 5: THỬ NGHIỆM, ĐÁNH GIÁ VÀ NGHIỆM THU HỆ THỐNG", 1)
 
     add_title_header(doc, "5.1. Kịch bản thử nghiệm áp lực cao (Turbo Mode Stress Test)", 2)
@@ -662,6 +666,7 @@ def generate_exact_report():
     # =========================================================================
     # CHƯƠNG 6: KẾT LUẬN VÀ HƯỚNG PHÁT TRIỂN
     # =========================================================================
+    doc.add_page_break()
     add_title_header(doc, "CHƯƠNG 6: KẾT LUẬN VÀ HƯỚNG PHÁT TRIỂN", 1)
 
     add_title_header(doc, "6.1. Các kết quả và đóng góp chính của đề tài", 2)
@@ -740,9 +745,11 @@ def generate_exact_report():
     add_p(doc, "Để đồng bộ toàn bộ dữ liệu Delta Lake và Models lên cụm Hadoop HDFS NameNode:")
     add_p(doc, ".\\.venv\\Scripts\\python.exe scripts\\sync_lakehouse_hdfs.py", bold_prefix="Đồng bộ HDFS: ")
 
-    out_file = os.path.join(PROJECT_DIR, "docs", "BigData_nhom15_ChuanChinhThuc.docx")
-    doc.save(out_file)
-    print(f"--> [HOAN TAT]: Da tao thanh cong file: {out_file}")
+    out_file1 = os.path.join(PROJECT_DIR, "docs", "BigData_nhom15.docx")
+    out_file2 = os.path.join(PROJECT_DIR, "docs", "BigData_nhom15_ChuanChinhThuc.docx")
+    doc.save(out_file1)
+    doc.save(out_file2)
+    print(f"--> [HOAN TAT]: Da tao thanh cong file: {out_file1} va {out_file2}")
 
 if __name__ == "__main__":
     generate_exact_report()
