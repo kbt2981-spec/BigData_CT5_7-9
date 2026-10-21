@@ -31,9 +31,10 @@ def main():
     spark.sparkContext._jsc.hadoopConfiguration().set("fs.file.impl", "org.apache.hadoop.fs.LocalFileSystem")
     spark.sparkContext._jsc.hadoopConfiguration().setBoolean("hadoop.native.lib", False)
 
-    silver_path = "./delta_lake/silver/giao_dich"
-    gold_path = "./delta_lake/gold/thong_ke_giao_dich"
-    gold_diem_rui_ro_path = "./delta_lake/gold/diem_rui_ro"
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+    silver_path = os.path.join(base_dir, "delta_lake", "silver", "giao_dich").replace("\\", "/")
+    gold_path = os.path.join(base_dir, "delta_lake", "gold", "thong_ke_giao_dich").replace("\\", "/")
+    gold_diem_rui_ro_path = os.path.join(base_dir, "delta_lake", "gold", "diem_rui_ro").replace("\\", "/")
 
     print("=== BAT DAU QUY TRINH ETL TANG GOLD (DE TAI 2: GIAN LAN THE) ===")
 

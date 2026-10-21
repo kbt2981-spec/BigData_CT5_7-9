@@ -34,8 +34,9 @@ def main():
     spark.sparkContext._jsc.hadoopConfiguration().set("fs.file.impl", "org.apache.hadoop.fs.LocalFileSystem")
     spark.sparkContext._jsc.hadoopConfiguration().setBoolean("hadoop.native.lib", False)
 
-    bronze_path = "./delta_lake/bronze/giao_dich"
-    silver_path = "./delta_lake/silver/giao_dich"
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+    bronze_path = os.path.join(base_dir, "delta_lake", "bronze", "giao_dich").replace("\\", "/")
+    silver_path = os.path.join(base_dir, "delta_lake", "silver", "giao_dich").replace("\\", "/")
 
     print("=== BAT DAU QUY TRINH ETL: BRONZE -> SILVER ===")
 
