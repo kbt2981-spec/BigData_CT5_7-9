@@ -110,7 +110,16 @@ def process_micro_batch(batch_df, batch_id):
     if batch_df.isEmpty():
         return
     
-    predictions = model.transform(batch_df)
+    # Bo sung dac trung can thiet cho model GBT
+    df_with_features = batch_df \
+        .withColumn("so_gd_truoc_do", lit(0).cast("long")) \
+        .withColumn("tong_tien_truoc_do", lit(0.0).cast("double")) \
+        .withColumn("so_tien_gd_gan_nhat", lit(0.0).cast("double")) \
+        .withColumn("sai_lech_so_du_nguon", col("newbalanceOrig") + col("so_tien") - col("oldbalanceOrg")) \
+        .withColumn("sai_lech_so_du_dich", col("oldbalanceDest") + col("so_tien") - col("newbalanceDest")) \
+        .withColumn("ty_le_so_tien_so_du_nguon", when(col("oldbalanceOrg") > 0, col("so_tien") / col("oldbalanceOrg")).otherwise(lit(1.0)))
+
+    predictions = model.transform(df_with_features)
 
     processed_scores = predictions \
         .withColumn("prob_array", vector_to_array(col("probability"))) \
