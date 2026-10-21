@@ -4,8 +4,13 @@ Hệ thống giám sát và phát hiện gian lận giao dịch tài chính th�
 
 * **Đồ án môn học:** Dữ liệu lớn (Big Data)
 * **Đơn vị đào tạo:** Khoa Công nghệ Thông tin - Trường Đại học Công Thương TP. Hồ Chí Minh (HUIT)
-* **Nhóm thực hiện:** Nhóm 15 (Lê Thanh Phong - 2001230669, Nguyễn Thành Phát - 2001230641, Trần Hưu Đạt - 2033230060)
-* **Kho mã nguồn GitHub:** [https://github.com/kbt2981-spec/BigData_CT5_7-9.git](https://github.com/kbt2981-spec/BigData_CT5_7-9.git)
+* **Nhóm thực hiện:** Nhóm 15
+  * Nguyễn Thành Phát (MSSV: 2001230641) — Nhóm trưởng
+  * Lê Thanh Phong (MSSV: 2001230669) — Thành viên
+  * Trần Hưu Đạt (MSSV: 2033230060) — Thành viên
+* **Kho mã nguồn GitHub (dự án):** [https://github.com/kbt2981-spec/BigData_CT5_7-9](https://github.com/kbt2981-spec/BigData_CT5_7-9)
+* **Kho mã nguồn GitHub (nhóm):** [https://github.com/nguyenthanhphat-144/BigDaTa/tree/main](https://github.com/nguyenthanhphat-144/BigDaTa/tree/main)
+* **Video demo hệ thống:** [https://docs.google.com/videos/d/1dz35H2zgO_3ym6WWxhCJnaq8_Jwf7-lHvoG3bdgVsaY/play?usp=sharing](https://docs.google.com/videos/d/1dz35H2zgO_3ym6WWxhCJnaq8_Jwf7-lHvoG3bdgVsaY/play?usp=sharing)
 
 ---
 
