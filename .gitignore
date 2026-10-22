@@ -43,3 +43,6 @@ models/*.model/
 *.execheckpoints/  
 consumer_out.txt  
 producer_out.txt  
+
+# Thu muc bao cao ca nhan (chi push khi co lenh)
+docxcanhan/
